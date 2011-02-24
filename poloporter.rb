@@ -3,14 +3,13 @@
 
 require 'java'
 require 'fileutils'
-require 'net/http'
 
 include FileUtils
 
 module Polopoly
   require 'yaml'
 
-  CONFIG =  YAML.load_file(File.expand_path("~/.polopoly-exporter/config.yml"))
+  CONFIG =  YAML.load_file(File.expand_path("~/.polopoly-exporter/config.yaml"))
 
   def self.client
     CONFIG["polopoly_libs"].each do |lib|
@@ -29,16 +28,58 @@ module Polopoly
   def self.config
     CONFIG
   end
+  class Exporter
+    attr_accessor :components, :content_references, :content_files
+    def initialize(external_id)
+      @external_id = external_id
+      @components = []
+      @content_references = []
+      @content_files = []
+    end
+    def to_xml
+      xml =  %Q{<?xml version="1.0" encoding="UTF-8"?>
+<batch xmlns="http://www.polopoly.com/polopoly/cm/xmlio" username="sysadmin" password="sysadmin">
+     <content>
+          <metadata>
+              <contentid>
+                  <externalid>#{@external_id}</externalid>
+              </contentid>
+          </metadata>
+  }
+      @components.each do |component|
+        xml <<  component.to_xml
+      end
+      @content_references.each do |reference|
+        xml <<  reference.to_xml 
+      end
+      @content_files.each do |file|
+        xml <<  file.to_xml
+      end
+      xml <<  %q{
+     </content>
+</batch>
+}    
+    end
+  end
+  class Util
+    def self.make_external_id(policy)
+      unless policy.external_id.nil?
+        external_id = policy.external_id.external_id
+      else
+        external_id = Polopoly.config['exporter_config']['polopoly_env'] + "-" + policy.content_id.major.to_s + "." + policy.content_id.minor.to_s
+      end
+    end
+    def self.find_policy(cm_server, id)
+      if id.match(/^\d+\.\d+/)
+        major, minor = id.split '.'
+        policy = cm_server.getPolicy(Polopoly::ContentId.new(major.to_i, minor.chomp!.to_i)).to_java(Polopoly::ContentPolicy)
+      else
+        policy = cm_server.getPolicy(Polopoly::ExternalContentId.new(id)).to_java(Polopoly::ContentPolicy)
+      end
+    end    
+  end    
 end
 
-def make_policy(cm_server, id)
-  if id.match(/^\d+\.\d+/)
-    major, minor = id.split '.'
-    policy = cm_server.getPolicy(Polopoly::ContentId.new(major.to_i, minor.chomp!.to_i)).to_java(Polopoly::ContentPolicy)
-  else
-    policy = cm_server.getPolicy(Polopoly::ExternalContentId.new(id)).to_java(Polopoly::ContentPolicy)
-  end
-end
 
 class Component
   def initialize(group, name, value)
@@ -50,7 +91,7 @@ class Component
       "#{@group}\t\t#{@name}\t\t#{@value}"
   end
   def to_xml
-    "\t\t<component name=\""+ @name + "\" group=\"" + @group + "\">"+ @value +"</component>"
+    "        <component name=\""+ @name + "\" group=\"" + @group + "\">"+ @value +"</component>\n"
   end
   def self.find_components(policy)
     components = []
@@ -64,30 +105,29 @@ class Component
 end
 
 class ContentReference 
-  require 'erb'
-  
-  def initialize(group, name, policy_reference)
+
+  def initialize(group, name, external_id)
     @group = group
     @name = name
-    @policy_reference = policy_reference
+    @external_id = external_id
   end
   def to_s
-      "#{@group}\t\t#{@name}\t\t#{@policy_reference}"
+      "#{@group}\t#{@name}\t\t#{@external_id}"
   end
   def to_xml
-    template = %q{        <contentref group="<%=@group%>" name="<%=@name%>">
+    %Q{        <contentref group="#{@group}" name="#{@name}">
             <contentid>
-                <externalid><%=@policy_reference%></externalid>
+                <externalid>#{@external_id}</externalid>
             </contentid>
-        </contentref> }
-    entry_xml = ERB.new(template, nil, "%<>")
-    entry_xml.result binding
+        </contentref> 
+}
   end
   def self.find_content_references(policy)
     refs = []
     policy.content_reference_group_names.each do |group|
       policy.content_reference_names(group).each do |name|
-        refs << ContentReference.new(group, name, policy.get_content_reference(group, name))
+        external_id = Polopoly::Util.make_external_id(policy.getCMServer.get_policy(policy.get_content_reference(group, name)))
+        refs << ContentReference.new(group, name, external_id)
       end
     end
     refs
@@ -101,10 +141,10 @@ class ContentFile
     @versioned_path = versioned_path
   end
   def to_s
-    "#{@path}\t\t#{Polopoly.config['base_content_file_url']}#{@versioned_path}" 
+    "#{@path}\t#{Polopoly.config['exporter_config']['base_content_file_url']}#{@versioned_path}" 
   end
   def to_xml
-    "\t\t<file name=" + @path + " encoding=\"URL\">" + Polopoly.config['base_content_file_url'] + @versioned_path + "</file>"
+    "        <file name=" + @path + " encoding=\"URL\">" + Polopoly.config['exporter_config']['base_content_file_url'] + @versioned_path + "</file>\n"
   end
   def self.is_valid_file?(file)
     true unless file.path =~ /(.*_gen.*|.DS_Store|Thumbs.db)/ or file.is_directory?
@@ -120,34 +160,14 @@ class ContentFile
   end
 end
 
-module Polopoly
-  class Exporter
-    attr_accessor :components, :content_references, :content_files
-    def initialize
-      @components = []
-      @content_references = []
-      @content_files = []
-    end
-  end
-end
-
 if ARGV.empty? or not ARGV.length == 1
   puts "usage: #{__FILE__} contentid"
 else
-  client = Polopoly.client 
-  cm_server = client.getPolicyCMServer
-  policy =  make_policy cm_server, ARGV[0] 
-  export = Polopoly::Exporter.new
+  cm_server = Polopoly.client.getPolicyCMServer
+  policy =  Polopoly::Util.find_policy cm_server, ARGV[0] 
+  export = Polopoly::Exporter.new ARGV[0]
   export.components = Component.find_components policy
   export.content_references = ContentReference.find_content_references policy
   export.content_files = ContentFile.find_content_files policy
-#  export.components.each do |component|
-#    puts component.to_xml
-#  end
-  export.content_references.each do |reference|
-    puts reference.to_xml 
-  end
-#  export.content_files.each do |file|
-#    puts file.to_xml
-#  end
+  puts export.to_xml
 end
