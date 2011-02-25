@@ -3,9 +3,7 @@
 
 require 'java'
 require 'fileutils'
-
 include FileUtils
-
 module Polopoly
   require 'yaml'
 
@@ -29,7 +27,7 @@ module Polopoly
     CONFIG
   end
   class Exporter
-    attr_accessor :components, :content_references, :content_files
+    attr_accessor :external_id, :components, :content_references, :content_files
     def initialize(external_id)
       @external_id = external_id
       @components = []
@@ -72,7 +70,8 @@ module Polopoly
     def self.find_policy(cm_server, id)
       if id.match(/^\d+\.\d+/)
         major, minor = id.split '.'
-        policy = cm_server.getPolicy(Polopoly::ContentId.new(major.to_i, minor.chomp!.to_i)).to_java(Polopoly::ContentPolicy)
+        #policy = cm_server.getPolicy(Polopoly::ContentId.new(major.to_i, minor.chomp!.to_i)).to_java(Polopoly::ContentPolicy)
+        policy = cm_server.getPolicy(Polopoly::ContentId.new(major.to_i, minor.to_i)).to_java(Polopoly::ContentPolicy)
       else
         policy = cm_server.getPolicy(Polopoly::ExternalContentId.new(id)).to_java(Polopoly::ContentPolicy)
       end
@@ -105,10 +104,11 @@ class Component
 end
 
 class ContentReference 
-
-  def initialize(group, name, external_id)
+  attr_accessor :content_reference_id, :group, :name, :external_id
+  def initialize(group, name, content_reference_id, external_id)
     @group = group
     @name = name
+    @content_reference_id= content_reference_id
     @external_id = external_id
   end
   def to_s
@@ -126,8 +126,9 @@ class ContentReference
     refs = []
     policy.content_reference_group_names.each do |group|
       policy.content_reference_names(group).each do |name|
+        content_reference_id = policy.get_content_reference(group, name)
         external_id = Polopoly::Util.make_external_id(policy.getCMServer.get_policy(policy.get_content_reference(group, name)))
-        refs << ContentReference.new(group, name, external_id)
+        refs << ContentReference.new(group, name, content_reference_id, external_id)
       end
     end
     refs
@@ -160,14 +161,35 @@ class ContentFile
   end
 end
 
-if ARGV.empty? or not ARGV.length == 1
-  puts "usage: #{__FILE__} contentid"
+if ARGV.empty? or not ARGV.length == 2
+  puts "usage: #{__FILE__} export_dir contentid"
 else
+  require 'set'
+  mkdir_p ARGV[0]
+  content_ids_to_export = Set.new
+  exported_policies = Set.new
   cm_server = Polopoly.client.getPolicyCMServer
-  policy =  Polopoly::Util.find_policy cm_server, ARGV[0] 
-  export = Polopoly::Exporter.new ARGV[0]
-  export.components = Component.find_components policy
-  export.content_references = ContentReference.find_content_references policy
-  export.content_files = ContentFile.find_content_files policy
-  puts export.to_xml
+  start_policy =  Polopoly::Util.find_policy cm_server, ARGV[1] 
+  puts start_policy.content_id.to_s
+  content_ids_to_export << start_policy.content_id
+  content_ids_to_export.each do |content_id|
+    begin
+      policy = Polopoly::Util.find_policy cm_server,"#{content_id.major}.#{content_id.minor}"
+    export = Polopoly::Exporter.new Polopoly::Util.make_external_id policy
+    export.components = Component.find_components policy
+    export.content_references = ContentReference.find_content_references policy
+    export.content_files = ContentFile.find_content_files policy
+    File.open(ARGV[0] + "/" + export.external_id + ".xml", "w") do |file|
+      file.puts export.to_xml
+    end
+    exported_policies << content_id
+    puts "exported_policies.size = #{exported_policies.size}"
+    exportable_ids = export.content_references.collect {|reference| reference.content_reference_id}
+    content_ids_to_export.merge exportable_ids
+    #remove ids that have already been imported
+    content_ids_to_export.reject! {|id| exported_policies.include?(id)}
+    rescue
+      puts "Exception caught " + $!
+    end
+  end
 end
