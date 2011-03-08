@@ -15,6 +15,11 @@ the poloopoly client to connect your polopoly instance.
     
     jboss_home: PATH_TO_JBOSS_INSTALLATION
     
+
+    #need to split libs into polopoly and jboss as 
+    #we use a new version of http-client than what is 
+    #in jbossall-client.jar
+
     polopoly_libs: 
       - /install/lib/servlet.jar
       - /install/lib/polopoly.jar
@@ -47,8 +52,23 @@ to speed up export time try increasing memory used by jruby and use server like 
 
     jruby --server -J-Xmx1024m polopoly-exporter.rb [OUTPUT_DIR] [CONTENT_ID]
 
+
+##example irb
+
+    ➜  polopoly-exporter git:(master) ✗ irb -r polopoly.rb 
+    irb(main):001:0> client = Polopoly.client
+    => #<Java::ComPolopolyPear::PolopolyApplication:0x519549e>
+    irb(main):002:0>  cm_server = client.getPolicyCMServer
+    => #<Java::ComPolopolyCmPolicyImpl::PolicyCMServerWrapper:0x4c767fb3>
+    irb(main):003:0> sys_dep = Polopoly::Util.find_policy cm_server, 'p.SystemDepartment'
+    => #<Java::ComPolopolyCmAppPolicyImpl::SystemConfigPolicy:0x16e7eec9>
+    irb(main):004:0> sys_dep.name
+    => "System Department"
+    irb(main):005:0> quit
+
 ##todo
     - make this a gem. as it is handy to fire up irb and require 'polopoly-exporter' to 
             dig around in polopoly.
     - if your sites have refences to other sites this will basically export everything currently
             published.
+
