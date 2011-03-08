@@ -156,7 +156,7 @@ class ContentFile
     files = []
     policy.listFiles('/', true).each do |file|
       if is_valid_file?(file)
-        files << ContentFile.new(file.path, "#{policy.content_id.major}.#{policy.content_id.minor}.#{policy.content_id.version}!#{file.path}")
+        files << ContentFile.new(file.path, "#{policy.content_id.major}.#{policy.content_id.minor}!#{file.path}")
       end
     end
     files

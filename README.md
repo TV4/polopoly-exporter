@@ -45,10 +45,10 @@ this is tested on polopoly 9.7 series but should work with other versions as wel
 
 to speed up export time try increasing memory used by jruby and use server like so:
 
-    jruby --server -J-Xmx1024m polopoly-exporter.rb [OUTPUT\_DIR] []CONTENT\_ID]
+    jruby --server -J-Xmx1024m polopoly-exporter.rb [OUTPUT_DIR] [CONTENT_ID]
 
 ##todo
     - make this a gem. as it is handy to fire up irb and require 'polopoly-exporter' to 
             dig around in polopoly.
-    - if you sites have refences to other sites this will basically export everything currently
+    - if your sites have refences to other sites this will basically export everything currently
             published.
