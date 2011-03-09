@@ -110,8 +110,6 @@ class ContentReference
 end
 
 class ContentFile
-  $KCODE = "u" #Use UTF-8 ruby 1.8 affects cgi.escape
-  require 'cgi'
   include Polopoly
   def initialize(path, versioned_path)
     @path = path 
@@ -121,7 +119,7 @@ class ContentFile
     "#{@path}\t#{Polopoly.config['exporter_config']['base_content_file_url']}#{@versioned_path}" 
   end
   def to_xml
-    "        <file name=\"" + @path + "\" encoding=\"URL\">" + Polopoly.config['exporter_config']['base_content_file_url'] + CGI.escape(@versioned_path) + "</file>\n"
+    "        <file name=\"" + @path + "\" encoding=\"URL\">" + Polopoly.config['exporter_config']['base_content_file_url'] + @versioned_path + "</file>\n"
   end
   def self.is_valid_file?(file)
     true unless file.path =~ /(.*_gen.*|.DS_Store|Thumbs.db)/ or file.is_directory?
