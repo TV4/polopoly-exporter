@@ -38,6 +38,15 @@ module Polopoly
 </batch>
 }    
     end
+    def self.exportable_content?(content_id)
+      #article, department, reference metadata
+      exportable_majors = [1, 2, 13]
+      unless (content_id.major != 2 && content_id.minor != 2) && exportable_majors.include?(content_id.major)
+        true
+      else
+        false
+      end
+    end
   end
 end
 
@@ -127,7 +136,6 @@ class ContentFile
     files
   end
 end
-
 if ARGV.empty? or not ARGV.length == 2
   puts "usage: #{__FILE__} export_dir contentid"
 else
@@ -140,23 +148,27 @@ else
   puts start_policy.content_id.to_s
   content_ids_to_export << start_policy.content_id
   content_ids_to_export.each do |content_id|
-    begin
-      policy = Polopoly::Util.find_policy cm_server,"#{content_id.major}.#{content_id.minor}"
-      export = Polopoly::Exporter.new policy
-      export.components = Component.find_components policy
-      export.content_references = ContentReference.find_content_references policy
-      export.content_files = ContentFile.find_content_files policy
-      File.open(ARGV[0] + "/" + export.external_id + ".xml", "w") do |file|
-        file.puts export.to_xml
+    unless Polopoly::Exporter.exportable_content?(content_id) 
+      break
+    else
+      begin
+        policy = Polopoly::Util.find_policy cm_server,"#{content_id.major}.#{content_id.minor}"
+        export = Polopoly::Exporter.new policy
+        export.components = Component.find_components policy
+        export.content_references = ContentReference.find_content_references policy
+        export.content_files = ContentFile.find_content_files policy
+        File.open(ARGV[0] + "/" + export.external_id + ".xml", "w") do |file|
+          file.puts export.to_xml
+        end
+        exported_policies << content_id
+        puts "exported_policies.size = #{exported_policies.size}"
+        exportable_ids = export.content_references.collect {|reference| reference.content_reference_id}
+        content_ids_to_export.merge exportable_ids
+        #remove ids that have already been imported
+        content_ids_to_export.reject! {|id| exported_policies.include?(id)}
+      rescue
+        puts "Exception caught " + $!
       end
-      exported_policies << content_id
-      puts "exported_policies.size = #{exported_policies.size}"
-      exportable_ids = export.content_references.collect {|reference| reference.content_reference_id}
-      content_ids_to_export.merge exportable_ids
-      #remove ids that have already been imported
-      content_ids_to_export.reject! {|id| exported_policies.include?(id)}
-    rescue
-      puts "Exception caught " + $!
     end
   end
 end
