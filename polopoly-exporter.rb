@@ -4,9 +4,11 @@ require 'polopoly'
 include FileUtils
 module Polopoly
   class Exporter
-    attr_accessor :external_id, :components, :content_references, :content_files
-    def initialize(external_id)
-      @external_id = external_id
+    attr_accessor :policy, :major, :external_id, :components, :content_references, :content_files
+    def initialize(policy)
+      @policy = policy
+      @major =  Polopoly::Util.find_major_name policy
+      @external_id = Polopoly::Util.make_external_id policy
       @components = []
       @content_references = []
       @content_files = []
@@ -17,6 +19,7 @@ module Polopoly
      <content>
           <metadata>
               <contentid>
+                  <major>#{@major}</major>
                   <externalid>#{@external_id}</externalid>
               </contentid>
           </metadata>
@@ -63,12 +66,14 @@ class Component
 end
 
 class ContentReference 
-  attr_accessor :content_reference_id, :group, :name, :external_id
-  def initialize(group, name, content_reference_id, external_id)
+  attr_accessor :major, :content_reference_id, :group, :name, :external_id
+  def initialize(group, name, content_reference_id, policy)
+    @major = Polopoly::Util.find_major_name policy
     @group = group
     @name = name
-    @content_reference_id= content_reference_id
-    @external_id = external_id
+    @content_reference_id = content_reference_id
+    #@external_id =  Polopoly::Util.make_external_id(policy.getCMServer.get_policy(policy.get_content_reference(group, name)))
+    @external_id =  Polopoly::Util.make_external_id(policy)
   end
   def to_s
       "#{@group}\t#{@name}\t\t#{@external_id}"
@@ -76,6 +81,7 @@ class ContentReference
   def to_xml
     %Q{        <contentref group="#{@group}" name="#{@name}">
             <contentid>
+                <major>#{@major}</major>
                 <externalid>#{@external_id}</externalid>
             </contentid>
         </contentref> 
@@ -86,8 +92,8 @@ class ContentReference
     policy.content_reference_group_names.each do |group|
       policy.content_reference_names(group).each do |name|
         content_reference_id = policy.get_content_reference(group, name)
-        external_id = Polopoly::Util.make_external_id(policy.getCMServer.get_policy(policy.get_content_reference(group, name)))
-        refs << ContentReference.new(group, name, content_reference_id, external_id)
+        content_reference_policy = policy.getCMServer.get_policy(policy.get_content_reference(group, name))
+        refs << ContentReference.new(group, name, content_reference_id, content_reference_policy)
       end
     end
     refs
@@ -136,19 +142,19 @@ else
   content_ids_to_export.each do |content_id|
     begin
       policy = Polopoly::Util.find_policy cm_server,"#{content_id.major}.#{content_id.minor}"
-    export = Polopoly::Exporter.new Polopoly::Util.make_external_id policy
-    export.components = Component.find_components policy
-    export.content_references = ContentReference.find_content_references policy
-    export.content_files = ContentFile.find_content_files policy
-    File.open(ARGV[0] + "/" + export.external_id + ".xml", "w") do |file|
-      file.puts export.to_xml
-    end
-    exported_policies << content_id
-    puts "exported_policies.size = #{exported_policies.size}"
-    exportable_ids = export.content_references.collect {|reference| reference.content_reference_id}
-    content_ids_to_export.merge exportable_ids
-    #remove ids that have already been imported
-    content_ids_to_export.reject! {|id| exported_policies.include?(id)}
+      export = Polopoly::Exporter.new policy
+      export.components = Component.find_components policy
+      export.content_references = ContentReference.find_content_references policy
+      export.content_files = ContentFile.find_content_files policy
+      File.open(ARGV[0] + "/" + export.external_id + ".xml", "w") do |file|
+        file.puts export.to_xml
+      end
+      exported_policies << content_id
+      puts "exported_policies.size = #{exported_policies.size}"
+      exportable_ids = export.content_references.collect {|reference| reference.content_reference_id}
+      content_ids_to_export.merge exportable_ids
+      #remove ids that have already been imported
+      content_ids_to_export.reject! {|id| exported_policies.include?(id)}
     rescue
       puts "Exception caught " + $!
     end

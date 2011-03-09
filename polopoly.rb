@@ -27,6 +27,9 @@ module Polopoly
     CONFIG
   end
   class Util
+    def self.find_major_name(policy)
+      (policy.getCMServer.major_info policy.content_id.content_id.major).name
+    end
     def self.make_external_id(policy)
       unless policy.external_id.nil?
         external_id = policy.external_id.external_id
