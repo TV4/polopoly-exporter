@@ -41,7 +41,7 @@ module Polopoly
     def self.exportable_content?(content_id)
       #article, department, reference metadata
       exportable_majors = [1, 2, 13]
-      unless (content_id.major != 2 && content_id.minor != 2) && exportable_majors.include?(content_id.major)
+      unless (content_id.major == 2 && content_id.minor == 2) && exportable_majors.include?(content_id.major)
         true
       else
         false
@@ -145,9 +145,9 @@ else
   exported_policies = Set.new
   cm_server = Polopoly.client.getPolicyCMServer
   start_policy =  Polopoly::Util.find_policy cm_server, ARGV[1] 
-  puts start_policy.content_id.to_s
   content_ids_to_export << start_policy.content_id
   content_ids_to_export.each do |content_id|
+    puts content_id.to_s
     unless Polopoly::Exporter.exportable_content?(content_id) 
       break
     else
