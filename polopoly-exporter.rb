@@ -161,7 +161,7 @@ else
         puts "Exception caught " + $!
       end
     else
-      break
+      next
     end
   end
 end
