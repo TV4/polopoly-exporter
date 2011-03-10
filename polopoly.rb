@@ -46,5 +46,30 @@ module Polopoly
       end
     end    
   end    
+  class SecurityParentUtil
+    def initialize(cm_server)
+      @cm_server = cm_server
+    end
+    def find_security_parents(child)
+      content_ids = [child.content_id.content_id.content_id_string]
+      current_content = find_security_parent(child)
+      until current_content.nil?
+        content_ids << current_content.content_id.content_id.content_id_string 
+        current_content =  find_security_parent(current_content)
+      end
+      content_ids
+    end
+    def find_security_parent(content)
+      unless content.security_parent_id.nil? 
+        @cm_server.get_content(content.security_parent_id) 
+      end
+    end
+    #root_content_id is the highest node in that we are interested in
+    #content_id should be a leaf node of root_content_id
+    def exportable_content?(root_content_id, content_id)
+      branch = find_security_parents(Polopoly::Util.find_policy(@cm_server, content_id))
+      branch.include?(Polopoly::Util.find_policy(@cm_server, root_content_id).content_id.content_id.content_id_string)
+    end
+  end
 end
 

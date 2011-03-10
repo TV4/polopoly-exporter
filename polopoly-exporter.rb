@@ -7,6 +7,7 @@ module Polopoly
     attr_accessor :policy, :major, :external_id, :components, :content_references, :content_files
     def initialize(policy)
       @policy = policy
+      @security_parent_util = SecurityParentUtil.new(policy.getCMServer)
       @major =  Polopoly::Util.find_major_name policy
       @external_id = Polopoly::Util.make_external_id policy
       @components = []
@@ -37,15 +38,6 @@ module Polopoly
      </content>
 </batch>
 }    
-    end
-    def self.exportable_content?(content_id)
-      #article, department, reference metadata
-      exportable_majors = [1, 2, 13]
-      unless (content_id.major == 2 && content_id.minor == 2) && exportable_majors.include?(content_id.major)
-        true
-      else
-        false
-      end
     end
   end
 end
@@ -138,24 +130,25 @@ if ARGV.empty? or not ARGV.length == 2
   puts "usage: #{__FILE__} export_dir contentid"
 else
   require 'set'
-  mkdir_p ARGV[0]
+  export_dir = ARGV[0]
+  mkdir_p export_dir
+  root_content_id = ARGV[1]
   content_ids_to_export = Set.new
   exported_policies = Set.new
   cm_server = Polopoly.client.getPolicyCMServer
-  start_policy =  Polopoly::Util.find_policy cm_server, ARGV[1] 
+  security_parent_util = Polopoly::SecurityParentUtil.new cm_server
+  start_policy =  Polopoly::Util.find_policy cm_server, root_content_id
   content_ids_to_export << start_policy.content_id
   content_ids_to_export.each do |content_id|
     puts content_id.to_s
-    unless Polopoly::Exporter.exportable_content?(content_id) 
-      break
-    else
+    if security_parent_util.exportable_content?(root_content_id, content_id.content_id.content_id.content_id_string) 
       begin
         policy = Polopoly::Util.find_policy cm_server,"#{content_id.major}.#{content_id.minor}"
         export = Polopoly::Exporter.new policy
         export.components = Component.find_components policy
         export.content_references = ContentReference.find_content_references policy
         export.content_files = ContentFile.find_content_files policy
-        File.open(ARGV[0] + "/" + export.external_id + ".xml", "w") do |file|
+        File.open(export_dir + "/" + export.external_id + ".xml", "w") do |file|
           file.puts export.to_xml
         end
         exported_policies << content_id
@@ -167,6 +160,8 @@ else
       rescue
         puts "Exception caught " + $!
       end
+    else
+      break
     end
   end
 end
