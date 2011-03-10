@@ -33,6 +33,7 @@ the poloopoly client to connect your polopoly instance.
     
     polopoly_packages:
       - com.polopoly.cm
+      - com.polopoly.cm.client
       - com.polopoly.cm.policy
       - com.polopoly.pear
       
