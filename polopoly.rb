@@ -67,8 +67,13 @@ module Polopoly
     #root_content_id is the highest node in that we are interested in
     #content_id should be a leaf node of root_content_id
     def exportable_content?(root_content_id, content_id)
-      branch = find_security_parents(Polopoly::Util.find_policy(@cm_server, content_id))
-      branch.include?(Polopoly::Util.find_policy(@cm_server, root_content_id).content_id.content_id.content_id_string)
+      begin
+        branch = find_security_parents(Polopoly::Util.find_policy(@cm_server, content_id))
+        branch.include?(Polopoly::Util.find_policy(@cm_server, root_content_id).content_id.content_id.content_id_string)
+      rescue
+        #return true on error to get the referred content.
+        true
+      end
     end
   end
 end
