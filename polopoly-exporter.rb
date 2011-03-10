@@ -130,6 +130,9 @@ if ARGV.empty? or not ARGV.length == 2
   puts "usage: #{__FILE__} export_dir contentid"
 else
   require 'set'
+  require 'rexml/document'
+  include REXML
+
   export_dir = ARGV[0]
   mkdir_p export_dir
   root_content_id = ARGV[1]
@@ -163,5 +166,20 @@ else
     else
       next
     end
+  end
+  File.open("import-first.xml", "w") do |output|
+    output.puts %q{<?xml version="1.0" encoding="UTF-8"?>
+<batch xmlns="http://www.polopoly.com/polopoly/cm/xmlio" username="sysadmin" password="sysadmin">
+  }
+    Dir[export_dir + "/*.xml"].each do |file|
+      doc = Document.new(File.new file)
+      XPath.each(doc, "//contentref/contentid") do |ref|
+        output.puts %q{<content><metadata>}
+        output.puts ref
+        output.puts %q{</metadata></content>}
+      end
+    end
+    output.puts %q{</batch>
+  }
   end
 end
