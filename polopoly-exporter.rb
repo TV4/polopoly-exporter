@@ -156,10 +156,14 @@ else
         end
         exported_policies << content_id
         puts "exported_policies.size = #{exported_policies.size}"
-        exportable_ids = export.content_references.collect {|reference| reference.content_reference_id}
-        content_ids_to_export.merge exportable_ids
-        #remove ids that have already been imported
-        content_ids_to_export.reject! {|id| exported_policies.include?(id)}
+        puts "content_ids_to_export.size = #{content_ids_to_export.size}"
+        #do not retrieve under departments.  those can be exported individually
+        if start_policy.content_id == content_id || content_id.major == 1 || content_id.major == 13
+          exportable_ids = export.content_references.collect {|reference| reference.content_reference_id}
+          content_ids_to_export.merge exportable_ids
+          #remove ids that have already been imported
+          content_ids_to_export.reject! {|id| exported_policies.include?(id)}
+        end
       rescue
         puts "Exception caught " + $!
       end

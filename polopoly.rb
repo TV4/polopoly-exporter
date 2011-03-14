@@ -69,7 +69,7 @@ module Polopoly
     def exportable_content?(root_content_id, content_id)
       begin
         branch = find_security_parents(Polopoly::Util.find_policy(@cm_server, content_id))
-        branch.include?(Polopoly::Util.find_policy(@cm_server, root_content_id).content_id.content_id.content_id_string)
+        content.major == 1 || branch.include?(Polopoly::Util.find_policy(@cm_server, root_content_id).content_id.content_id.content_id_string)
       rescue
         #return true on error to get the referred content.
         true
