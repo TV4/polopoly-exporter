@@ -24,7 +24,7 @@ module Polopoly
                   <externalid>#{@external_id}</externalid>
               </contentid>
           </metadata>
-  }
+      }
       @components.each do |component|
         xml <<  component.to_xml
       end
@@ -37,7 +37,7 @@ module Polopoly
       xml <<  %q{
      </content>
 </batch>
-}    
+      }    
     end
   end
 end
@@ -50,7 +50,7 @@ class Component
     @value = value
   end
   def to_s
-      "#{@group}\t\t#{@name}\t\t#{@value}"
+    "#{@group}\t\t#{@name}\t\t#{@value}"
   end
   def to_xml
     "        <component name=\""+ @name + "\" group=\"" + @group + "\"><![CDATA["+ @value +"]]></component>\n"
@@ -77,7 +77,7 @@ class ContentReference
     @external_id =  Polopoly::Util.make_external_id(policy)
   end
   def to_s
-      "#{@group}\t#{@name}\t\t#{@external_id}"
+    "#{@group}\t#{@name}\t\t#{@external_id}"
   end
   def to_xml
     %Q{        <contentref group="#{@group}" name="#{@name}">
@@ -86,7 +86,7 @@ class ContentReference
                 <externalid>#{@external_id}</externalid>
             </contentid>
         </contentref> 
-}
+    }
   end
   def self.find_content_references(policy)
     refs = []
@@ -114,7 +114,7 @@ class ContentFile
     "        <file name=\"" + @path + "\" encoding=\"URL\">" + Polopoly.config['exporter_config']['base_content_file_url'] + @versioned_path + "</file>\n"
   end
   def self.is_valid_file?(file)
-    true unless file.path =~ /(.*_gen.*|.DS_Store|Thumbs.db)/ or file.is_directory?
+    true unless file.path =~ /(.DS_Store|Thumbs.db)/ or file.is_directory?
   end
   def self.find_content_files(policy)
     files = []
@@ -171,19 +171,35 @@ else
       next
     end
   end
-  File.open("import-first.xml", "w") do |output|
-    output.puts %q{<?xml version="1.0" encoding="UTF-8"?>
-<batch xmlns="http://www.polopoly.com/polopoly/cm/xmlio" username="sysadmin" password="sysadmin">
-  }
-    Dir[export_dir + "/*.xml"].each do |file|
-      doc = Document.new(File.new file)
-      XPath.each(doc, "//contentref/contentid") do |ref|
-        output.puts %q{<content><metadata>}
-        output.puts ref
-        output.puts %q{</metadata></content>}
-      end
+
+  #take all the xml files created in the import and find their
+  #externalids and create imports for them.  these need to be imported
+  #first.
+  
+  refs = []
+  Dir[export_dir + "/*.xml"].each do |file|
+    doc = Document.new(File.new file)
+    XPath.each(doc, "//contentref/contentid") do |ref|
+      refs <<  [ XPath.first(ref, "./externalid").text, XPath.first(ref, "./major").text ]
     end
-    output.puts %q{</batch>
-  }
+  end
+  refs.uniq!
+  file_number = 1
+  mkdir_p "import-first"
+  refs.each_slice(500) do |slice|
+    File.open("import-first/" + file_number.to_s + ".xml", "w") do |output|
+      output.puts %q{<?xml version="1.0" encoding="UTF-8"?>
+<batch xmlns="http://www.polopoly.com/polopoly/cm/xmlio" username="sysadmin" password="sysadmin">
+      }
+      slice.each do |ref|
+        output.puts %q{<content><metadata><contentid>}
+        output.puts %Q{<major>#{ref[1]}</major>} 
+        output.puts %Q{<externalid>#{ref[0]}</externalid>} 
+        output.puts %q{</contentid></metadata></content>}
+      end
+      output.puts %q{</batch>
+      }
+    end
+    file_number = file_number + 1
   end
 end
