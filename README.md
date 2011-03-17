@@ -54,6 +54,17 @@ to speed up export time try increasing memory used by jruby and use server like 
     jruby --server -J-Xmx1024m polopoly-exporter.rb [OUTPUT_DIR] [CONTENT_ID]
 
 
+when polopoly-exporter ends you will have 2 directories [OUTPUT_DIR] import-first
+
+import-first directory contains xml that is used to forward the externalids that
+are in the output directory.
+
+added polopoly-importer.rb that takes a directory and imports everything in that 
+directory. this was **much**  quicker than using a for loop in and calling xmlio 
+as it doesn't start a jvm for each file.
+
+    jruby polopoly-importer.rb import-first
+
 ##example irb
 
     ➜  polopoly-exporter git:(master) ✗ irb -r polopoly.rb 
@@ -70,6 +81,4 @@ to speed up export time try increasing memory used by jruby and use server like 
 ##todo
     - make this a gem. as it is handy to fire up irb and require 'polopoly-exporter' to 
             dig around in polopoly.
-    - if your sites have refences to other sites this will basically export everything currently
-            published.
 
