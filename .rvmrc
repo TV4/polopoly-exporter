@@ -1,1 +1,1 @@
-rvm use jruby-1.5.5@exporter --create
+rvm use jruby-1.6.0@exporter --create

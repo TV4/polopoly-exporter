@@ -105,7 +105,7 @@ class ContentFile
   include Polopoly
   def initialize(path, versioned_path)
     @path = path 
-    @versioned_path = versioned_path
+    @versioned_path = versioned_path.gsub(' ', "%20")
   end
   def to_s
     "#{@path}\t#{Polopoly.config['exporter_config']['base_content_file_url']}#{@versioned_path}" 
