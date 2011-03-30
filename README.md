@@ -7,7 +7,7 @@ to a developement machine.
 
     jruby polopoly-exporter.rb [OUTPUT\_DIR] []CONTENT\_ID]
 
-you also need to create ~/.polopoly-exporter/config.yaml to configure
+you also need to create ~/.polopoly-jruby/config.yaml to configure
 the poloopoly client to connect your polopoly instance.
 
 
