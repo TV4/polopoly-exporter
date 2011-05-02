@@ -126,13 +126,26 @@ class ContentFile
     files
   end
 end
+#taken from http://codeforpeople.com/lib/ruby/alib/alib-0.5.1/lib/alib-0.5.1/util.rb
+def snake_case string
+  return string unless string =~ %r/[A-Z]/
+    string.reverse.scan(%r/[A-Z]+|[^A-Z]*[A-Z]+?/).reverse.map{|word| word.reverse.downcase}.join '_'
+end
+
+def camel_case string
+  return string if string =~ %r/[A-Z]/ and string !~ %r/_/
+    words = string.strip.split %r/\s*_+\s*/
+    words.map!{|w| w.downcase.sub(%r/^./){|c| c.upcase}}
+  words.join
+end
+
 if ARGV.empty? or not ARGV.length == 2
   puts "usage: #{__FILE__} export_dir contentid"
 else
   require 'set'
   require 'rexml/document'
   include REXML
-
+  
   export_dir = ARGV[0]
   mkdir_p export_dir
   root_content_id = ARGV[1]
@@ -142,6 +155,19 @@ else
   security_parent_util = Polopoly::SecurityParentUtil.new cm_server
   start_policy =  Polopoly::Util.find_policy cm_server, root_content_id
   content_ids_to_export << start_policy.content_id
+  #load the exporter configureation unless it's not cofigured
+  export_strategy = Polopoly.config['exporter_config']['export_strategy']
+  unless export_strategy.nil?
+    require export_strategy
+    include export_strategy.camel_case
+  else
+    module DefaultStrategy
+      def export_content?(start_policy, content_id)
+        false
+      end
+    end
+    include DefaultStrategy
+  end
   content_ids_to_export.each do |content_id|
     puts content_id.to_s
     if security_parent_util.exportable_content?(root_content_id, content_id.content_id.content_id.content_id_string) 
@@ -158,7 +184,7 @@ else
         puts "exported_policies.size = #{exported_policies.size}"
         puts "content_ids_to_export.size = #{content_ids_to_export.size}"
         #do not retrieve under departments.  those can be exported individually
-        if start_policy.content_id == content_id || content_id.major == 1 || content_id.major == 13
+        if export_content?(start_policy, content_id) 
           exportable_ids = export.content_references.collect {|reference| reference.content_reference_id}
           content_ids_to_export.merge exportable_ids
           #remove ids that have already been imported
