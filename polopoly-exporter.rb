@@ -10,6 +10,8 @@ module Polopoly
       @security_parent_util = SecurityParentUtil.new(policy.getCMServer)
       @major =  Polopoly::Util.find_major_name policy
       @external_id = Polopoly::Util.make_external_id policy
+      @security_parent_policy = Polopoly::Util.find_policy(policy.getCMServer, @security_parent_util.find_security_parent(policy).content_id.content_id.content_id_string)
+      @security_parent_external_id = Polopoly::Util.make_external_id @security_parent_policy
       @components = []
       @content_references = []
       @content_files = []
@@ -23,6 +25,10 @@ module Polopoly
                   <major>#{@major}</major>
                   <externalid>#{@external_id}</externalid>
               </contentid>
+              <security-parent>
+                <major>#{Polopoly::Util.find_major_name @security_parent_policy}</major>
+                <externalid>#{@security_parent_external_id}</externalid>
+               </security-parent>
           </metadata>
       }
       @components.each do |component|
@@ -129,13 +135,13 @@ end
 #taken from http://codeforpeople.com/lib/ruby/alib/alib-0.5.1/lib/alib-0.5.1/util.rb
 def snake_case string
   return string unless string =~ %r/[A-Z]/
-    string.reverse.scan(%r/[A-Z]+|[^A-Z]*[A-Z]+?/).reverse.map{|word| word.reverse.downcase}.join '_'
+  string.reverse.scan(%r/[A-Z]+|[^A-Z]*[A-Z]+?/).reverse.map{|word| word.reverse.downcase}.join '_'
 end
 
 def camel_case string
   return string if string =~ %r/[A-Z]/ and string !~ %r/_/
-    words = string.strip.split %r/\s*_+\s*/
-    words.map!{|w| w.downcase.sub(%r/^./){|c| c.upcase}}
+  words = string.strip.split %r/\s*_+\s*/
+  words.map!{|w| w.downcase.sub(%r/^./){|c| c.upcase}}
   words.join
 end
 
@@ -145,7 +151,7 @@ else
   require 'set'
   require 'rexml/document'
   include REXML
-  
+
   export_dir = ARGV[0]
   mkdir_p export_dir
   root_content_id = ARGV[1]
@@ -157,9 +163,10 @@ else
   content_ids_to_export << start_policy.content_id
   #load the exporter configureation unless it's not cofigured
   export_strategy = Polopoly.config['exporter_config']['export_strategy']
+  puts "using #{export_strategy}"
   unless export_strategy.nil?
     require export_strategy
-    include export_strategy.camel_case
+    include Kernel.const_get(camel_case(export_strategy))
   else
     module DefaultStrategy
       def export_content?(start_policy, content_id)
@@ -201,31 +208,31 @@ else
   #take all the xml files created in the import and find their
   #externalids and create imports for them.  these need to be imported
   #first.
-  
-  refs = []
-  Dir[export_dir + "/*.xml"].each do |file|
-    doc = Document.new(File.new file)
-    XPath.each(doc, "//contentref/contentid") do |ref|
-      refs <<  [ XPath.first(ref, "./externalid").text, XPath.first(ref, "./major").text ]
-    end
-  end
-  refs.uniq!
-  file_number = 1
-  mkdir_p "import-first"
-  refs.each_slice(500) do |slice|
-    File.open("import-first/" + file_number.to_s + ".xml", "w") do |output|
-      output.puts %q{<?xml version="1.0" encoding="UTF-8"?>
-<batch xmlns="http://www.polopoly.com/polopoly/cm/xmlio" username="sysadmin" password="sysadmin">
-      }
-      slice.each do |ref|
-        output.puts %q{<content><metadata><contentid>}
-        output.puts %Q{<major>#{ref[1]}</major>} 
-        output.puts %Q{<externalid>#{ref[0]}</externalid>} 
-        output.puts %q{</contentid></metadata></content>}
+
+    refs = []
+    Dir[export_dir + "/*.xml"].each do |file|
+      doc = Document.new(File.new file)
+      XPath.each(doc, "//contentref/contentid") do |ref|
+        refs <<  [ XPath.first(ref, "./externalid").text, XPath.first(ref, "./major").text ]
       end
-      output.puts %q{</batch>
-      }
     end
-    file_number = file_number + 1
-  end
+    refs.uniq!
+    file_number = 1
+    mkdir_p "#{export_dir}-import-first"
+    refs.each_slice(500) do |slice|
+      File.open("#{export_dir}-import-first/" + file_number.to_s + ".xml", "w") do |output|
+        output.puts %q{<?xml version="1.0" encoding="UTF-8"?>
+  <batch xmlns="http://www.polopoly.com/polopoly/cm/xmlio" username="sysadmin" password="sysadmin">
+        }
+        slice.each do |ref|
+          output.puts %q{<content><metadata><contentid>}
+          output.puts %Q{<major>#{ref[1]}</major>} 
+          output.puts %Q{<externalid>#{ref[0]}</externalid>} 
+          output.puts %q{</contentid></metadata></content>}
+        end
+        output.puts %q{</batch>
+        }
+      end
+      file_number = file_number + 1
+    end
 end
